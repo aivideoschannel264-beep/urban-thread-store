@@ -147,11 +147,11 @@ function showCart(){
 
   document.getElementById('total').textContent =
     'Total: Rs. ' + total.toLocaleString('en-PK');
-}
-
 function removeItem(i){
   cart.splice(i,1);
   showCart();
+}
+
 document.getElementById('checkout').addEventListener('submit', async e => {
   e.preventDefault();
 
@@ -160,7 +160,7 @@ document.getElementById('checkout').addEventListener('submit', async e => {
     return;
   }
 
-  const name = document.getElementById('customer_name').value.trim();
+  const name = document.getElementById('name').value.trim();
   const phone = document.getElementById('phone').value.trim();
   const address = document.getElementById('address').value.trim();
 
