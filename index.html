@@ -3,25 +3,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>URBAN THREAD | Men's Fashion</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial;background:#f5f5f5;color:#171717}
-header{background:#111;color:white;padding:20px;text-align:center}
-header h1{letter-spacing:4px;margin:5px}
-nav{background:#222;padding:12px;text-align:center}
+header,footer{background:#111;color:white;text-align:center;padding:22px}
+header h1{letter-spacing:4px}
+nav{background:#222;padding:14px;text-align:center}
 nav a{color:white;text-decoration:none;margin:12px}
-.hero{background:#222;color:white;text-align:center;padding:65px 15px}
-.hero h2{font-size:35px}
-button{background:#111;color:white;border:0;padding:12px 18px;cursor:pointer;border-radius:5px}
-.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;padding:25px}
+.hero{background:#222;color:white;text-align:center;padding:55px 15px}
+button{background:#111;color:white;border:0;padding:12px 18px;border-radius:5px;cursor:pointer}
+.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px;padding:20px}
 .product{background:white;padding:15px;border-radius:10px;text-align:center}
 .product img{width:100%;height:220px;object-fit:cover;border-radius:8px}
-.price{font-weight:bold;font-size:20px}
 #cart{background:white;margin:20px;padding:20px;border-radius:10px}
 input,textarea{width:100%;padding:12px;margin:8px 0;border:1px solid #ccc;border-radius:5px}
-footer{background:#111;color:white;text-align:center;padding:20px}
 </style>
 </head>
 <body>
@@ -44,41 +42,19 @@ footer{background:#111;color:white;text-align:center;padding:20px}
 </section>
 
 <h2 style="text-align:center" id="products">OUR COLLECTION</h2>
-
-<section class="products">
-<div class="product">
-<img src="https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500" alt="Classic T-shirt">
-<h3>Classic T-Shirt</h3>
-<p class="price">Rs. 1,499</p>
-<button onclick="add('Classic T-Shirt',1499)">Add to Cart</button>
-</div>
-
-<div class="product">
-<img src="https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500" alt="Men's Jacket">
-<h3>Men's Jacket</h3>
-<p class="price">Rs. 3,499</p>
-<button onclick="add('Men Jacket',3499)">Add to Cart</button>
-</div>
-
-<div class="product">
-<img src="https://images.unsplash.com/photo-1542272604-787c3835535d?w=500" alt="Men's Jeans">
-<h3>Classic Jeans</h3>
-<p class="price">Rs. 2,499</p>
-<button onclick="add('Classic Jeans',2499)">Add to Cart</button>
-</div>
-</section>
+<div id="status" style="text-align:center;padding:10px">Loading products...</div>
+<section class="products" id="product-list"></section>
 
 <section id="cart">
 <h2>YOUR CART</h2>
 <div id="items">Your cart is empty.</div>
 <h3 id="total">Total: Rs. 0</h3>
-
 <h2>Checkout</h2>
-<form onsubmit="order(event)">
+<form id="checkout">
 <input id="name" placeholder="Your Name" required>
 <input id="phone" placeholder="Phone Number" required>
 <textarea id="address" placeholder="Delivery Address" required></textarea>
-<button type="submit">Place Demo Order</button>
+<button type="submit">Place Order</button>
 </form>
 <p id="message"></p>
 </section>
@@ -89,44 +65,102 @@ footer{background:#111;color:white;text-align:center;padding:20px}
 </footer>
 
 <script>
-let cart=[];
+const SUPABASE_URL = "https://afwikvilbmgmwjcwamzx.supabase.co";
+const SUPABASE_KEY = "sb_publishable_FIpEBKTrSW_j3XhTvNIHHQ_pdX8U3AV";
 
-function add(name,price){
-cart.push({name,price});
-showCart();
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+
+let cart = [];
+let products = [];
+
+async function loadProducts(){
+  const {data,error} = await db
+    .from('products')
+    .select('*')
+    .order('id',{ascending:false});
+
+  const status = document.getElementById('status');
+
+  if(error){
+    status.textContent = 'Products load nahi hue. Database settings check karein.';
+    return;
+  }
+
+  products = data || [];
+
+  if(products.length === 0){
+    status.textContent = 'Abhi koi product add nahi hua.';
+    return;
+  }
+
+  status.textContent = '';
+
+  document.getElementById('product-list').innerHTML =
+    products.map(p => `
+      <div class="product">
+        <img src="${safeImage(p.image_url)}" alt="Product">
+        <h3>${escapeHTML(p.name)}</h3>
+        <p>${escapeHTML(p.description || '')}</p>
+        <p><b>Rs. ${Number(p.price).toLocaleString('en-PK')}</b></p>
+        <button onclick="addToCart(${p.id})">Add to Cart</button>
+      </div>
+    `).join('');
+}
+
+function escapeHTML(value){
+  return String(value).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;',
+    '"':'&quot;',"'":'&#39;'
+  })[c]);
+}
+
+function safeImage(url){
+  if(!url || !/^https:\/\//i.test(url)){
+    return 'https://placehold.co/500x350?text=URBAN+THREAD';
+  }
+  return escapeHTML(url);
+}
+
+function addToCart(id){
+  const p = products.find(x => x.id === id);
+  if(!p) return;
+  cart.push(p);
+  showCart();
 }
 
 function showCart(){
-let items=document.getElementById('items');
-let total=0;
+  let total = 0;
+  const items = document.getElementById('items');
 
-if(cart.length===0){
-items.innerHTML='Your cart is empty.';
-}else{
-items.innerHTML=cart.map((p,i)=>{
-total+=p.price;
-return `<p>${p.name} - Rs. ${p.price}
-<button onclick="removeItem(${i})">Remove</button></p>`;
-}).join('');
-}
-document.getElementById('total').innerText='Total: Rs. '+total;
+  if(!cart.length){
+    items.textContent = 'Your cart is empty.';
+  }else{
+    items.innerHTML = cart.map((p,i)=>{
+      total += Number(p.price);
+      return `<p>${escapeHTML(p.name)} - Rs. ${Number(p.price)}
+      <button type="button" onclick="removeItem(${i})">Remove</button></p>`;
+    }).join('');
+  }
+
+  document.getElementById('total').textContent =
+    'Total: Rs. ' + total.toLocaleString('en-PK');
 }
 
 function removeItem(i){
-cart.splice(i,1);
-showCart();
+  cart.splice(i,1);
+  showCart();
 }
 
-function order(e){
-e.preventDefault();
-if(cart.length===0){
-alert('Please add a product first.');
-return;
-}
-document.getElementById('message').innerText=
-'Demo order prepared! Backend connection is needed to save real orders.';
-}
+document.getElementById('checkout').addEventListener('submit',e=>{
+  e.preventDefault();
+  document.getElementById('message').textContent =
+    'Checkout abhi setup ho raha hai. Real orders abhi submit nahi ho rahe.';
+});
+
+loadProducts();
 </script>
-
 </body>
 </html>
