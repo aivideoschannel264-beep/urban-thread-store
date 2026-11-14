@@ -200,14 +200,12 @@ document.getElementById('checkout').addEventListener('submit',async e=>{
     const {data,error} = await db
       .from('orders')
       .insert([{
-        customer_name:name,
-        phone:phone,
-        address:address,
-        total:total,
-        status:'pending'
-      }])
-      .select()
-      .single();
+  customer_name:name,
+  phone:phone,
+  address:address,
+  total:total,
+  status:'pending'
+}]);
 
     if(error){
       message.textContent = 'Order ERROR: ' + error.message;
