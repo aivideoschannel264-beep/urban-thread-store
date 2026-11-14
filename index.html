@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>URBAN THREAD | Men's Fashion</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial;background:#f5f5f5;color:#171717}
@@ -22,6 +22,7 @@ button{background:#111;color:white;border:0;padding:12px 18px;border-radius:5px;
 input,textarea{width:100%;padding:12px;margin:8px 0;border:1px solid #ccc;border-radius:5px}
 </style>
 </head>
+
 <body>
 
 <header>
@@ -49,12 +50,13 @@ input,textarea{width:100%;padding:12px;margin:8px 0;border:1px solid #ccc;border
 <h2>YOUR CART</h2>
 <div id="items">Your cart is empty.</div>
 <h3 id="total">Total: Rs. 0</h3>
+
 <h2>Checkout</h2>
 <form id="checkout">
 <input id="name" placeholder="Your Name" required>
 <input id="phone" placeholder="Phone Number" required>
 <textarea id="address" placeholder="Delivery Address" required></textarea>
-<button type="submit">Place Order</button>
+<button type="submit" id="orderButton">Place Order</button>
 </form>
 <p id="message"></p>
 </section>
@@ -76,44 +78,13 @@ const db = window.supabase.createClient(
 let cart = [];
 let products = [];
 
-async function loadProducts(){
-  const {data,error} = await db
-    .from('products')
-    .select('*')
-    .order('id',{ascending:false});
-
-  const status = document.getElementById('status');
-
-  if(error){
-  status.textContent = 'ERROR: ' + error.message;
-  return;
-  }
-
-  products = data || [];
-
-  if(products.length === 0){
-    status.textContent = 'Abhi koi product add nahi hua.';
-    return;
-  }
-
-  status.textContent = '';
-
-  document.getElementById('product-list').innerHTML =
-    products.map(p => `
-      <div class="product">
-        <img src="${safeImage(p.image_url)}" alt="Product">
-        <h3>${escapeHTML(p.name)}</h3>
-        <p>${escapeHTML(p.description || '')}</p>
-        <p><b>Rs. ${Number(p.price).toLocaleString('en-PK')}</b></p>
-        <button onclick="addToCart(${p.id})">Add to Cart</button>
-      </div>
-    `).join('');
-}
-
 function escapeHTML(value){
-  return String(value).replace(/[&<>"']/g, c => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;',
-    '"':'&quot;',"'":'&#39;'
+  return String(value ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
   })[c]);
 }
 
@@ -124,8 +95,56 @@ function safeImage(url){
   return escapeHTML(url);
 }
 
+async function loadProducts(){
+  const status = document.getElementById('status');
+  status.textContent = 'Loading products...';
+
+  try{
+    const {data,error} = await db
+      .from('products')
+      .select('*')
+      .order('id',{ascending:false});
+
+    if(error){
+      status.textContent = 'ERROR: ' + error.message;
+      return;
+    }
+
+    products = data || [];
+
+    if(products.length === 0){
+      status.textContent = 'Abhi koi product add nahi hua.';
+      return;
+    }
+
+    status.textContent = '';
+
+    document.getElementById('product-list').innerHTML =
+      products.map(p => `
+        <div class="product">
+          <img src="${safeImage(p.image_url)}" alt="Product">
+          <h3>${escapeHTML(p.name)}</h3>
+          <p>${escapeHTML(p.description || '')}</p>
+          <p><b>Rs. ${Number(p.price).toLocaleString('en-PK')}</b></p>
+          <button type="button" data-product-id="${escapeHTML(p.id)}">
+            Add to Cart
+          </button>
+        </div>
+      `).join('');
+
+  }catch(error){
+    status.textContent = 'ERROR: ' + error.message;
+  }
+}
+
+document.getElementById('product-list').addEventListener('click',e=>{
+  const button = e.target.closest('button[data-product-id]');
+  if(!button) return;
+  addToCart(button.dataset.productId);
+});
+
 function addToCart(id){
-  const p = products.find(x => x.id === id);
+  const p = products.find(x => String(x.id) === String(id));
   if(!p) return;
   cart.push(p);
   showCart();
@@ -141,7 +160,7 @@ function showCart(){
     items.innerHTML = cart.map((p,i)=>{
       total += Number(p.price);
       return `<p>${escapeHTML(p.name)} - Rs. ${Number(p.price)}
-      <button type="button" onclick="removeItem(${i})">Remove</button></p>`;
+      <button type="button" data-remove="${i}">Remove</button></p>`;
     }).join('');
   }
 
@@ -149,46 +168,62 @@ function showCart(){
     'Total: Rs. ' + total.toLocaleString('en-PK');
 }
 
-function removeItem(i){
+document.getElementById('items').addEventListener('click',e=>{
+  const button = e.target.closest('button[data-remove]');
+  if(!button) return;
 
-document.getElementById('checkout').addEventListener('submit', async e => {
+  cart.splice(Number(button.dataset.remove),1);
+  showCart();
+});
+
+document.getElementById('checkout').addEventListener('submit',async e=>{
   e.preventDefault();
 
-  if (!cart.length) {
-    document.getElementById('message').textContent = 'Cart empty hai!';
+  const message = document.getElementById('message');
+  const orderButton = document.getElementById('orderButton');
+
+  if(!cart.length){
+    message.textContent = 'Cart empty hai!';
     return;
   }
+
+  orderButton.disabled = true;
+  message.textContent = 'Order submit ho raha hai...';
 
   const name = document.getElementById('name').value.trim();
   const phone = document.getElementById('phone').value.trim();
   const address = document.getElementById('address').value.trim();
 
-  const total = cart.reduce((sum, p) => sum + Number(p.price), 0);
+  const total = cart.reduce((sum,p)=>sum + Number(p.price),0);
 
-  const { data, error } = await db
-    .from('orders')
-    .insert([{
-      customer_name: name,
-      phone: phone,
-      address: address,
-      total: total,
-      status: 'pending'
-    }])
-    .select()
-    .single();
+  try{
+    const {data,error} = await db
+      .from('orders')
+      .insert([{
+        customer_name:name,
+        phone:phone,
+        address:address,
+        total:total,
+        status:'pending'
+      }])
+      .select()
+      .single();
 
-  if (error) {
-    document.getElementById('message').textContent =
-      'Order failed: ' + error.message;
-    return;
+    if(error){
+      message.textContent = 'Order ERROR: ' + error.message;
+      return;
+    }
+
+    message.textContent = 'Order placed successfully! Order ID: ' + data.id;
+    cart = [];
+    showCart();
+    e.target.reset();
+
+  }catch(error){
+    message.textContent = 'ERROR: ' + error.message;
+  }finally{
+    orderButton.disabled = false;
   }
-
-  document.getElementById('message').textContent =
-    'Order placed successfully! Order ID: ' + data.id;
-
-  cart = [];
-  showCart();
-  e.target.reset();
 });
 
 loadProducts();
