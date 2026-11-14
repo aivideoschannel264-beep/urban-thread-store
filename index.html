@@ -85,8 +85,8 @@ async function loadProducts(){
   const status = document.getElementById('status');
 
   if(error){
-    status.textContent = 'Products load nahi hue. Database settings check karein.';
-    return;
+  status.textContent = 'ERROR: ' + error.message;
+  return;
   }
 
   products = data || [];
