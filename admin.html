@@ -1,187 +1,382 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>URBAN THREAD - Admin</title>
+<title>URBAN THREAD - Admin Panel</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-body{font-family:Arial;background:#f3f3f3;margin:0;color:#222}
-header{background:#111;color:white;padding:20px;text-align:center}
-main{max-width:750px;margin:25px auto;padding:15px}
-.card{background:white;padding:20px;margin-bottom:18px;border-radius:10px}
-input,textarea{width:100%;padding:12px;margin:8px 0;box-sizing:border-box;border:1px solid #ccc;border-radius:5px}
-button{background:#111;color:white;border:0;padding:12px 18px;border-radius:5px;cursor:pointer;margin:5px}
-.danger{background:#b42318}
-.hidden{display:none}
-.item{border-bottom:1px solid #ddd;padding:12px 0}
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;color:#222}
+header{background:#111;color:white;padding:18px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+header h2{margin:0;font-size:20px}
+main{max-width:900px;margin:20px auto;padding:15px}
+.card{background:white;padding:20px;border-radius:12px;margin-bottom:18px;box-shadow:0 2px 10px #00000010}
+input,textarea{width:100%;padding:13px;margin:7px 0 12px;border:1px solid #ccc;border-radius:7px;font-size:15px}
+button{background:#111;color:white;border:0;padding:12px 17px;border-radius:7px;cursor:pointer;font-size:15px}
+button:disabled{opacity:.5}
+.danger{background:#c62828}
+.hidden{display:none!important}
+.message{padding:10px;margin-top:10px;border-radius:7px;background:#eee;overflow-wrap:anywhere}
+.item{border:1px solid #ddd;padding:13px;border-radius:8px;margin:10px 0;overflow-wrap:anywhere}
+.item img{width:90px;height:90px;object-fit:cover;border-radius:7px}
+.item-top{display:flex;gap:12px;align-items:center}
+h3{margin-top:0}
+.small{color:#666;font-size:13px}
 </style>
 </head>
 <body>
+
 <header>
-<h1>URBAN THREAD</h1>
-<p>ADMIN DASHBOARD</p>
+  <h2>URBAN THREAD ADMIN</h2>
+  <button id="logoutBtn" class="hidden">Logout</button>
 </header>
 
 <main>
-<div class="card" id="login">
-<h2>Admin Login</h2>
-<form id="loginForm">
-<input id="email" type="email" placeholder="Admin Email" required>
-<input id="password" type="password" placeholder="Password" required>
-<button type="submit">Login</button>
-</form>
-<p id="loginMessage"></p>
-</div>
+  <section id="login" class="card">
+    <h2>Admin Login</h2>
+    <form id="loginForm">
+      <label>Email</label>
+      <input id="email" type="email" placeholder="Admin email" required>
+      <label>Password</label>
+      <input id="password" type="password" placeholder="Password" required>
+      <button id="loginBtn" type="submit">Login</button>
+    </form>
+    <div id="loginMessage" class="message hidden"></div>
+  </section>
 
-<div id="dashboard" class="hidden">
-<div class="card">
-<h2>Welcome Admin</h2>
-<button id="logout">Logout</button>
-</div>
+  <section id="dashboard" class="hidden">
+    <div class="card">
+      <h2>Welcome Admin</h2>
+      <p>URBAN THREAD Dashboard</p>
+      <p id="adminEmail" class="small"></p>
+    </div>
 
-<div class="card">
-<h2>Add Product</h2>
-<form id="productForm">
-<input id="productName" placeholder="Product Name" required>
-<textarea id="description" placeholder="Description"></textarea>
-<input id="price" type="number" min="1" placeholder="Price in Rs." required>
-<input id="image" type="url" placeholder="Image URL (https://...)">
-<button type="submit">Add Product</button>
-</form>
-<p id="productMessage"></p>
-</div>
+    <div class="card">
+      <h3>Add New Product</h3>
+      <form id="productForm">
+        <label>Product Name</label>
+        <input id="productName" required placeholder="Product name">
+        <label>Description</label>
+        <textarea id="productDescription" placeholder="Description"></textarea>
+        <label>Price</label>
+        <input id="productPrice" type="number" min="0" step="0.01" required placeholder="Price">
+        <label>Image URL</label>
+        <input id="productImage" type="url" placeholder="https://example.com/image.jpg">
+        <button id="addProductBtn" type="submit">Add Product</button>
+      </form>
+      <div id="productMessage" class="message hidden"></div>
+    </div>
 
-<div class="card">
-<h2>Manage Products</h2>
-<div id="productList">Loading...</div>
-</div>
+    <div class="card">
+      <h3>All Products</h3>
+      <button id="refreshProducts">Refresh Products</button>
+      <div id="productsList">Loading products...</div>
+    </div>
 
-<div class="card">
-<h2>Customer Orders</h2>
-<div id="orderList">Loading...</div>
-</div>
-</div>
+    <div class="card">
+      <h3>Customer Orders</h3>
+      <button id="refreshOrders">Refresh Orders</button>
+      <div id="ordersList">Loading orders...</div>
+    </div>
+  </section>
 </main>
 
 <script>
-const URL = "https://afwikvilbmgmwjcwamzx.supabase.co";
-const KEY = "sb_publishable_FIpEBKTrSW_j3XhTvNIHHQ_pdX8U3AV";
-const db = window.supabase.createClient(URL,KEY);
+(() => {
+  const SUPABASE_URL = "https://afwikvilbmgmwjcwamzx.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_FIpEBKTrSW_j3XhTvNIHHQ_pdX8U3AV";
 
-const $ = id => document.getElementById(id);
+  const db = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+  );
 
-function safe(text){
- return String(text ?? '').replace(/[&<>"']/g,c=>({
- '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
- })[c]);
-}
+  const $ = id => document.getElementById(id);
 
-async function checkAdmin(){
- const {data:{session}} = await db.auth.getSession();
- if(!session){showLogin();return;}
- const {data,error} = await db.from('admins')
-   .select('user_id').eq('user_id',session.user.id).maybeSingle();
+  function message(id, text) {
+    const el = $(id);
+    el.textContent = text;
+    el.classList.remove("hidden");
+  }
 
- if(error || !data){
-   await db.auth.signOut();
-   showLogin('This account is not an admin.');
-   return;
- }
- $('login').classList.add('hidden');
- $('dashboard').classList.remove('hidden');
- loadProducts();
- loadOrders();
-}
+  function clearMessage(id) {
+    $(id).textContent = "";
+    $(id).classList.add("hidden");
+  }
 
-function showLogin(message=''){
- $('login').classList.remove('hidden');
- $('dashboard').classList.add('hidden');
- $('loginMessage').textContent=message;
-}
+  function showLogin(text = "") {
+    $("login").classList.remove("hidden");
+    $("dashboard").classList.add("hidden");
+    $("logoutBtn").classList.add("hidden");
+    if (text) message("loginMessage", text);
+  }
 
-$('loginForm').addEventListener('submit',async e=>{
- e.preventDefault();
- $('loginMessage').textContent='Checking login...';
- const {error}=await db.auth.signInWithPassword({
-  email:$('email').value,
-  password:$('password').value
- });
- if(error){$('loginMessage').textContent=error.message;return;}
- await checkAdmin();
-});
+  function showDashboard(user) {
+    $("login").classList.add("hidden");
+    $("dashboard").classList.remove("hidden");
+    $("logoutBtn").classList.remove("hidden");
+    $("adminEmail").textContent = user.email || "";
+  }
 
-$('logout').onclick=async()=>{
- await db.auth.signOut();
- showLogin('Logged out.');
-};
+  async function checkAdmin() {
+    try {
+      const { data: sessionData, error: sessionError } =
+        await db.auth.getSession();
 
-async function loadProducts(){
- const {data,error}=await db.from('products').select('*').order('id',{ascending:false});
- if(error){$('productList').textContent=error.message;return;}
- $('productList').replaceChildren();
- if(!data.length){$('productList').textContent='No products yet.';return;}
- data.forEach(p=>{
-  const div=document.createElement('div');
-  div.className='item';
-  const title=document.createElement('b');
-  title.textContent=p.name+' - Rs. '+p.price;
-  const btn=document.createElement('button');
-  btn.className='danger';
-  btn.textContent='Delete';
-  btn.onclick=()=>deleteProduct(p.id);
-  div.append(title,document.createElement('br'),btn);
-  $('productList').append(div);
- });
-}
+      if (sessionError) throw sessionError;
 
-$('productForm').addEventListener('submit',async e=>{
- e.preventDefault();
- const price=Number($('price').value);
- if(!Number.isFinite(price)||price<=0){
-  $('productMessage').textContent='Enter a valid price.';
-  return;
- }
- const image=$('image').value.trim();
- if(image && !image.startsWith('https://')){
-  $('productMessage').textContent='Image URL must start with https://';
-  return;
- }
- const {error}=await db.from('products').insert({
-  name:$('productName').value.trim(),
-  description:$('description').value.trim(),
-  price,
-  image_url:image||null
- });
- if(error){$('productMessage').textContent=error.message;return;}
- $('productMessage').textContent='Product added!';
- $('productForm').reset();
- loadProducts();
-});
+      const session = sessionData.session;
+      if (!session) {
+        showLogin();
+        return;
+      }
 
-async function deleteProduct(id){
- if(!confirm('Delete this product?'))return;
- const {error}=await db.from('products').delete().eq('id',id);
- if(error){alert(error.message);return;}
- loadProducts();
-}
+      const { data, error } = await db
+        .from("admins")
+        .select("user_id")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
 
-async function loadOrders(){
- const {data,error}=await db.from('orders').select('*').order('id',{ascending:false});
- if(error){$('orderList').textContent=error.message;return;}
- $('orderList').replaceChildren();
- if(!data.length){$('orderList').textContent='No orders yet.';return;}
- data.forEach(o=>{
-  const div=document.createElement('div');
-  div.className='item';
-  div.textContent='Order #'+o.id+' | '+o.customer_name+
-   ' | '+o.phone+' | Rs. '+o.total+' | '+o.status;
-  $('orderList').append(div);
- });
-}
+      if (error) {
+        showLogin("Admin check failed: " + error.message);
+        return;
+      }
 
-checkAdmin();
+      if (!data) {
+        await db.auth.signOut();
+        showLogin("This account is not registered as an admin.");
+        return;
+      }
+
+      showDashboard(session.user);
+      await Promise.all([loadProducts(), loadOrders()]);
+
+    } catch (error) {
+      showLogin("Error: " + error.message);
+    }
+  }
+
+  $("loginForm").addEventListener("submit", async function(e) {
+    e.preventDefault();
+
+    const btn = $("loginBtn");
+    btn.disabled = true;
+    btn.textContent = "Checking...";
+    message("loginMessage", "Checking login...");
+
+    try {
+      const email = $("email").value.trim();
+      const password = $("password").value;
+
+      const { error } = await db.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        message("loginMessage", "Login failed: " + error.message);
+      } else {
+        clearMessage("loginMessage");
+        await checkAdmin();
+      }
+    } catch (error) {
+      message("loginMessage", "Error: " + error.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Login";
+    }
+  });
+
+  $("logoutBtn").addEventListener("click", async function() {
+    const { error } = await db.auth.signOut();
+    if (error) {
+      alert("Logout error: " + error.message);
+      return;
+    }
+    showLogin("You have logged out.");
+  });
+
+  function safeImageUrl(value) {
+    try {
+      const url = new URL(value);
+      return ["https:", "http:"].includes(url.protocol) ? url.href : "";
+    } catch {
+      return "";
+    }
+  }
+
+  async function loadProducts() {
+    const list = $("productsList");
+    list.textContent = "Loading products...";
+
+    try {
+      const { data, error } = await db
+        .from("products")
+        .select("id,name,description,price,image_url,created_at")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      list.replaceChildren();
+
+      if (!data || data.length === 0) {
+        list.textContent = "No products found.";
+        return;
+      }
+
+      data.forEach(product => {
+        const item = document.createElement("div");
+        item.className = "item";
+
+        const top = document.createElement("div");
+        top.className = "item-top";
+
+        const imageUrl = safeImageUrl(product.image_url || "");
+        if (imageUrl) {
+          const img = document.createElement("img");
+          img.src = imageUrl;
+          img.alt = product.name || "Product";
+          img.loading = "lazy";
+          top.appendChild(img);
+        }
+
+        const info = document.createElement("div");
+        const name = document.createElement("strong");
+        name.textContent = product.name || "Unnamed product";
+
+        const price = document.createElement("p");
+        price.textContent = "Price: " + product.price;
+
+        const description = document.createElement("p");
+        description.textContent = product.description || "";
+
+        info.append(name, price, description);
+        top.appendChild(info);
+
+        const del = document.createElement("button");
+        del.className = "danger";
+        del.textContent = "Delete Product";
+        del.addEventListener("click", () => deleteProduct(product.id));
+
+        item.append(top, del);
+        list.appendChild(item);
+      });
+
+    } catch (error) {
+      list.textContent = "Products error: " + error.message;
+    }
+  }
+
+  async function deleteProduct(id) {
+    if (!confirm("Are you sure you want to delete this product?")) return;
+
+    try {
+      const { error } = await db
+        .from("products")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      alert("Product deleted successfully.");
+      await loadProducts();
+    } catch (error) {
+      alert("Delete failed: " + error.message);
+    }
+  }
+
+  $("productForm").addEventListener("submit", async function(e) {
+    e.preventDefault();
+
+    const btn = $("addProductBtn");
+    btn.disabled = true;
+    btn.textContent = "Adding...";
+
+    try {
+      const name = $("productName").value.trim();
+      const description = $("productDescription").value.trim();
+      const price = Number($("productPrice").value);
+      const image = $("productImage").value.trim();
+
+      if (!name || !Number.isFinite(price) || price < 0) {
+        throw new Error("Enter a valid product name and price.");
+      }
+
+      if (image && !safeImageUrl(image)) {
+        throw new Error("Please enter a valid image URL.");
+      }
+
+      const { error } = await db.from("products").insert([{
+        name,
+        description,
+        price,
+        image_url: image || null
+      }]);
+
+      if (error) throw error;
+
+      message("productMessage", "Product added successfully!");
+      $("productForm").reset();
+      await loadProducts();
+
+    } catch (error) {
+      message("productMessage", "Add failed: " + error.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Add Product";
+    }
+  });
+
+  async function loadOrders() {
+    const list = $("ordersList");
+    list.textContent = "Loading orders...";
+
+    try {
+      const { data, error } = await db
+        .from("orders")
+        .select("customer_name,phone,address,total,status,created_at")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      list.replaceChildren();
+
+      if (!data || data.length === 0) {
+        list.textContent = "No orders found.";
+        return;
+      }
+
+      data.forEach(order => {
+        const item = document.createElement("div");
+        item.className = "item";
+
+        const heading = document.createElement("strong");
+        heading.textContent = order.customer_name || "Customer";
+
+        const details = document.createElement("p");
+        details.textContent =
+          "Phone: " + (order.phone || "") +
+          "\nAddress: " + (order.address || "") +
+          "\nTotal: " + (order.total ?? "") +
+          "\nStatus: " + (order.status || "pending") +
+          "\nDate: " + (order.created_at || "");
+
+        details.style.whiteSpace = "pre-line";
+        item.append(heading, details);
+        list.appendChild(item);
+      });
+
+    } catch (error) {
+      list.textContent = "Orders error: " + error.message;
+    }
+  }
+
+  $("refreshProducts").addEventListener("click", loadProducts);
+  $("refreshOrders").addEventListener("click", loadOrders);
+
+  checkAdmin();
+})();
 </script>
 </body>
 </html>
