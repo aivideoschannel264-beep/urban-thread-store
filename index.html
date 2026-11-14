@@ -147,10 +147,9 @@ function showCart(){
 
   document.getElementById('total').textContent =
     'Total: Rs. ' + total.toLocaleString('en-PK');
-function removeItem(i){
-  cart.splice(i,1);
-  showCart();
 }
+
+function removeItem(i){
 
 document.getElementById('checkout').addEventListener('submit', async e => {
   e.preventDefault();
